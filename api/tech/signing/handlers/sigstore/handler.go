@@ -14,9 +14,9 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag/conv"
 	"github.com/mandelsoft/goutils/errors"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
+	"github.com/sigstore/cosign/v3/cmd/cosign/cli/fulcio"
+	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
 	"github.com/sigstore/rekor/pkg/client"
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
 	"github.com/sigstore/rekor/pkg/generated/models"
@@ -294,4 +294,24 @@ func prepareRekorEntry(digest string, sig, publicKey []byte) hashedrekord_v001.V
 			},
 		},
 	}
+}
+
+// getIssuerFromCert extracts the issuer identity from a Fulcio certificate.
+// It prioritizes Subject Alternative Name (SAN) over Subject as Fulcio
+// stores the OIDC identity in SAN.
+func getIssuerFromCert(cert *x509.Certificate) string {
+	// Email from SAN
+	if len(cert.EmailAddresses) > 0 {
+		return cert.EmailAddresses[0]
+	}
+	// URI from SAN (e.g., GitHub, GitLab)
+	if len(cert.URIs) > 0 {
+		return cert.URIs[0].String()
+	}
+	// DNS from SAN
+	if len(cert.DNSNames) > 0 {
+		return cert.DNSNames[0]
+	}
+	// Fallback to Subject Common Name
+	return cert.Subject.CommonName
 }
