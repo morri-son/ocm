@@ -1,5 +1,10 @@
 name: Sigstore Verify Compatibility Test
 
+# Uses a pre-signed component to test verification compatibility
+# between v2 and v3 OCM CLIs with Sigstore v2 and v3 signatures.
+# The component ghcr.io/morri-son/ocm-test//ocm.software/sigstore-test-comp:1.0.0
+# has been signed with both Sigstore v2 and v3 signatures, using OCM v2 and v3 CLIs respectively.
+
 on:
   workflow_dispatch:
     inputs:
