@@ -61,7 +61,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/rogpeppe/go-internal v1.14.1
-	github.com/sigstore/cosign/v2 v2.6.1
 	github.com/sigstore/cosign/v3 v3.0.2
 	github.com/sigstore/rekor v1.4.3
 	github.com/sigstore/sigstore v1.9.6-0.20250729224751-181c5d3339b3
