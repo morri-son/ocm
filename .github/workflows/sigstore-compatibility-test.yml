@@ -124,14 +124,14 @@ jobs:
           EOF
           
           # Create component version using component-constructor
-          /tmp/ocm-signing-cli add componentversions --create --file /tmp/ctf /tmp/component.yaml
+          /tmp/ocm-signing-cli add cv --create --file /tmp/ctf /tmp/component.yaml
       
       - name: Sign Component
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
           echo "Signing component..."
-          /tmp/ocm-signing-cli sign componentversion \
+          /tmp/ocm-signing-cli sign cv \
             --signature test-sig-${{ matrix.test_name }} \
             --algorithm sigstore \
             --keyless \
@@ -144,7 +144,7 @@ jobs:
           COSIGN_EXPERIMENTAL: "1"
         run: |
           echo "Verifying component..."
-          /tmp/ocm-verifying-cli verify componentversion \
+          /tmp/ocm-verifying-cli verify cv \
             --signature test-sig-${{ matrix.test_name }} \
             --keyless \
             /tmp/ctf//ocm.software/test-comp:1.0.0
