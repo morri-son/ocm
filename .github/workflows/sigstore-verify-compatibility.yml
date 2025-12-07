@@ -76,10 +76,11 @@ jobs:
         run: |
           echo "Downloading OCM CLI ${{ matrix.cli_ref }} from GitHub releases"
           VERSION="${{ matrix.cli_ref }}"
+          VERSION_NO_V="${VERSION#v}"  # Remove 'v' prefix
           ARCH="linux-amd64"
           
-          # Download release binary
-          curl -sSfL "https://github.com/${{ matrix.cli_repo }}/releases/download/${VERSION}/ocm-${VERSION}-${ARCH}.tar.gz" \
+          # Download release binary (filename uses version without 'v')
+          curl -sSfL "https://github.com/${{ matrix.cli_repo }}/releases/download/${VERSION}/ocm-${VERSION_NO_V}-${ARCH}.tar.gz" \
             -o ocm.tar.gz
           
           # Extract and install
