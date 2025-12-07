@@ -27,7 +27,7 @@ on:
       v3_ref:
         description: 'v3 Reference (tag/branch/commit)'
         required: true
-        default: 'test/sigstore-v3-compatibility'
+        default: 'feat/upgrade-sigstore-v3'
         type: string
 
 jobs:
