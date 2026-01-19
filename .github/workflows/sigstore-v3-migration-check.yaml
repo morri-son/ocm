@@ -19,16 +19,6 @@ name: Sigstore v3 migration check
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "api/tech/signing/handlers/sigstore/**"
-      - "cmds/ocm/**"
-      - ".github/workflows/sigstore-v3-migration-check.yaml"
-      - "go.mod"
-      - "go.sum"
-  push:
-    branches:
-      - test/sigstore-v3-migration
 
 permissions:
   id-token: write      # REQUIRED to mint GitHub OIDC tokens
