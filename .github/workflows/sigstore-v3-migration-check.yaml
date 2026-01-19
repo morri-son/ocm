@@ -81,10 +81,10 @@ jobs:
       - name: Show pre-signed remote component (sanity check)
         run: ./bin/ocm get cv ghcr.io/morri-son/ocm-test//ocm.software/podinfo-comp:1.0.0 -oyaml | head -n 60
 
-      - name: Verify legacy signature from remote (algorithm: sigstore)
+      - name: Verify legacy signature from remote
         run: ./bin/ocm verify componentversion --signature sigstore-legacy ghcr.io/morri-son/ocm-test//ocm.software/podinfo-comp:1.0.0
 
-      - name: Verify recommended signature from remote (algorithm: sigstore-v3)
+      - name: Verify recommended signature from remote
         run: ./bin/ocm verify componentversion --signature sigstore-recommended ghcr.io/morri-son/ocm-test//ocm.software/podinfo-comp:1.0.0
 
       - name: Prepare a local component archive (CTF) to sign with keyless
