@@ -1,0 +1,144 @@
+# Sigstore v3 migration verification workflow
+# This workflow validates the migration steps required for GitHub Actions after upgrading to cosign v3:
+# - Explicitly request a GitHub OIDC ID token (audience=sigstore)
+# - Export SIGSTORE_ID_TOKEN for non-interactive keyless signing
+# - Verify both legacy (sigstore) and new (sigstore-v3) signatures
+# - Demonstrate failure when SIGSTORE_ID_TOKEN is not provided (to document the migration requirement)
+#
+# It also verifies pre-signed test components hosted in GHCR:
+#   ghcr.io/morri-son/ocm-test//ocm.software/podinfo-comp:1.0.0
+# with signatures:
+#   - sigstore-legacy (algorithm: sigstore)
+#   - sigstore-recommended (algorithm: sigstore-v3)
+#
+# References:
+# - PR: https://github.com/open-component-model/ocm/pull/1726
+# - Handler: api/tech/signing/handlers/sigstore/handler.go
+
+name: Sigstore v3 migration check
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    paths:
+      - "api/tech/signing/handlers/sigstore/**"
+      - "cmds/ocm/**"
+      - ".github/workflows/sigstore-v3-migration-check.yaml"
+      - "go.mod"
+      - "go.sum"
+
+permissions:
+  id-token: write      # REQUIRED to mint GitHub OIDC tokens
+  contents: read
+  packages: read       # For pulling public components from GHCR
+
+jobs:
+  verify-and-sign:
+    name: Verify and sign with cosign v3 migration steps
+    runs-on: ubuntu-latest
+    env:
+      # Public Sigstore endpoints are the defaults in the OCM sigstore handler attribute,
+      # but listed here for clarity of the migration docs:
+      OCM_SIGSTORE_FULCIO_URL: "https://fulcio.sigstore.dev"
+      OCM_SIGSTORE_REKOR_URL: "https://rekor.sigstore.dev"
+      OCM_SIGSTORE_OIDC_ISSUER: "https://oauth2.sigstore.dev/auth"
+      OCM_SIGSTORE_OIDC_CLIENT_ID: "sigstore"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.*"
+          cache: true
+
+      - name: Install jq (for JSON parsing)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Build OCM CLI from source
+        run: |
+          go build -v -o ./bin/ocm ./cmds/ocm
+          ./bin/ocm version || true
+
+      - name: Acquire GitHub OIDC token (audience=sigstore) and export SIGSTORE_ID_TOKEN
+        run: |
+          set -euo pipefail
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "ACTIONS_ID_TOKEN_REQUEST_* not available. Ensure permissions.id-token=write"
+            exit 1
+          fi
+          URL="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sigstore"
+          RESP=$(curl -sSf -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${URL}")
+          echo "${RESP}" | jq -e '.value' >/dev/null
+          TOKEN=$(echo "${RESP}" | jq -r '.value')
+          echo "::add-mask::${TOKEN}"
+          echo "SIGSTORE_ID_TOKEN=${TOKEN}" >> "${GITHUB_ENV}"
+
+      - name: Show pre-signed remote component (sanity check)
+        run: ./bin/ocm get cv ghcr.io/morri-son/ocm-test//ocm.software/podinfo-comp:1.0.0 -oyaml | head -n 60
+
+      - name: Verify legacy signature from remote (algorithm: sigstore)
+        run: ./bin/ocm verify componentversion --signature sigstore-legacy ghcr.io/morri-son/ocm-test//ocm.software/podinfo-comp:1.0.0
+
+      - name: Verify recommended signature from remote (algorithm: sigstore-v3)
+        run: ./bin/ocm verify componentversion --signature sigstore-recommended ghcr.io/morri-son/ocm-test//ocm.software/podinfo-comp:1.0.0
+
+      - name: Prepare a local component archive (CTF) to sign with keyless
+        id: prep
+        run: |
+          set -euo pipefail
+          tmpdir="$(mktemp -d)"
+          echo "TMP=${tmpdir}" >> "${GITHUB_ENV}"
+          ./bin/ocm create componentarchive --file "${tmpdir}/ctf" --provider ghactions.test ghactions.test/sigstore-migration 1.0.0
+          echo "local_ref=${tmpdir}/ctf//ghactions.test/sigstore-migration:1.0.0" >> "${GITHUB_OUTPUT}"
+          echo "Created component archive at ${tmpdir}/ctf"
+
+      - name: Attempt keyless signing WITHOUT SIGSTORE_ID_TOKEN (expect failure)
+        env:
+          SIGSTORE_ID_TOKEN: ""
+        run: |
+          set +e
+          # Use timeout to avoid hanging on device-flow attempts
+          timeout 90s ./bin/ocm sign componentversion \
+            --signature ghactions-no-token \
+            --algorithm sigstore-v3 \
+            --keyless \
+            "${{ steps.prep.outputs.local_ref }}"
+          ec=$?
+          if [ $ec -eq 0 ]; then
+            echo "Unexpected success without SIGSTORE_ID_TOKEN; migration steps not enforced."
+            exit 1
+          fi
+          echo "Expected failure without SIGSTORE_ID_TOKEN (exit ${ec})"
+
+      - name: Keyless signing with SIGSTORE_ID_TOKEN (cosign v3, algorithm sigstore-v3)
+        run: |
+          ./bin/ocm sign componentversion \
+            --signature ghactions-v3 \
+            --algorithm sigstore-v3 \
+            --keyless \
+            "${{ steps.prep.outputs.local_ref }}"
+
+      - name: Verify local v3 signature
+        run: |
+          ./bin/ocm verify componentversion \
+            --signature ghactions-v3 \
+            "${{ steps.prep.outputs.local_ref }}"
+
+      - name: Optional: Keyless signing with legacy algorithm (sigstore)
+        run: |
+          ./bin/ocm sign componentversion \
+            --signature ghactions-legacy \
+            --algorithm sigstore \
+            --keyless \
+            "${{ steps.prep.outputs.local_ref }}"
+
+      - name: Verify local legacy signature
+        run: |
+          ./bin/ocm verify componentversion \
+            --signature ghactions-legacy \
+            "${{ steps.prep.outputs.local_ref }}"
