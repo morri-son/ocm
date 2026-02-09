@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	awscreds "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -78,7 +79,7 @@ func (s *Downloader) Download(w io.WriterAt) error {
 		o.Credentials = awsCred
 		o.Region = s.region
 	})
-	downloader := manager.NewDownloader(client)
+	downloader := transfermanager.NewDownloader(client)
 
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
